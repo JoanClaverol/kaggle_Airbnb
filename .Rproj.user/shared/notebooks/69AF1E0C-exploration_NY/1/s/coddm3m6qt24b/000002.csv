@@ -19,3 +19,5 @@
 "0","  )"
 "0","# define main used color"
 "0","col <- ""dodgerblue4"""
+"0","# caption used for all the charts "
+"0","caption <- ""Airbnb listings and metrics in NYC, NY, USA (2019)"""

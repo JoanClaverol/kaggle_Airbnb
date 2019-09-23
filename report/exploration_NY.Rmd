@@ -336,7 +336,6 @@ relevant_words <- text_wordcounts %>%
   select(word) 
 ```
 
-
 We will decide to keep all the variables that appear more than 50 times:
 
 ```{r}
@@ -359,7 +358,47 @@ mod_price_dummy <- lm(price ~., data = words_data %>%
                         select(neighbourhood_group, room_type, price, 
                                starts_with("word_filter_")))
 
+# cheking the metrics of the model 
+# checking at the metrics
+words_data %>% 
+  add_predictions(model = mod_price_dummy, var = "price_pred") %>% 
+  add_residuals(model = mod_price_dummy, var = "price_resid") -> temp
+postResample(pred = temp$price_pred, obs = temp$price)
 ```
 
+Let's plot the errors of our model with dummy variables:
 
+```{r}
+temp %>% 
+  ggplot() +
+    geom_point(aes(x = price_pred, y = price)) +
+    geom_abline(slope = 1, intercept = 0, color = "red") + 
+    labs(title = "Error analyisis for price model, including words in names",
+         subtitle = "In a perfect situation, all the points should fall into the red line") +
+    xlab("Price predictions") + ylab("Price") +
+    theme_minimal() 
+```
+
+Try to use caret with a random forest to predict the prices:
+
+```{r}
+names <- words_data %>% 
+    select(neighbourhood_group, room_type, price,starts_with("word_filter_"))  %>% 
+    names()
+
+source("models/fun_model_creation.R")
+model_caret <- modalization(
+  data = words_data, p_partition = 0.8, cv_repeats = 1, cv_number = 1,
+  x = "price", y = names, model_name = "rf", set_seed = 123
+  )
+
+
+
+
+model_caret <- caret::train(
+  form = price ~., 
+  data = words_data[names],
+  method = "rf"
+)
+```
 
