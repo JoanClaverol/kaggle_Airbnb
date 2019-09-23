@@ -1,0 +1,8 @@
+"0","# unique ids in the calendar data"
+"0","unique_ids_cal <- calendar %>%"
+"0","  distinct(listing_id) %>% "
+"0","  count()"
+"0","# unique ids in the listing data"
+"0","unique_ids_listing <- listing_det %>% "
+"0","  distinct(id) %>% "
+"0","  count()"

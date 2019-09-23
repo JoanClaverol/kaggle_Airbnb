@@ -1,0 +1,6 @@
+"0","df_price <- listing_det %>% "
+"0","  # price transformation to numeric"
+"0","  mutate_at(.vars = vars(ends_with(""price""), security_deposit, cleaning_fee),"
+"0","            ~ parse_number(.)) %>%"
+"0","  # creattion new feature"
+"0","  mutate(minimum_price = minimum_nights * price)"

@@ -1,0 +1,9 @@
+"0","df_cal <- calendar %>% 
+  # transform price to right variable
+  mutate(price_cal = parse_number(price),
+         week_day = wday(date, week_start = 1, label = T)) %>% 
+  # join the information
+  right_join(y = listing_det, by = ""listing_id"") 
+"
+"2","Error: `by` can't contain join column `listing_id` which is missing from RHS
+"

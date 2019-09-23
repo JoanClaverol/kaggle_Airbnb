@@ -1,0 +1,15 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+|The type of property: | Localisation: | Features related to time: | Reviews:        | 
+| :------------------- | :------------ | :------------------------ | :-------------- |
+| Property_type        | Neighbourhood | Price                     | Number of review|
+| Room_type            |               | Weekly_price              | Security_deposit|
+| Accommodates         |               | Cleaning_fee              | Cleaning_fee    |
+|                      |               | Minimum_nights            |                 |

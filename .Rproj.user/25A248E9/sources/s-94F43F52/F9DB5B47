@@ -1,0 +1,28 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1568901871578.000,
+    "dirty" : true,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "F9DB5B47",
+    "lastKnownWriteTime" : 1569250558,
+    "last_content_update" : 1569250631275,
+    "path" : "~/Documents/UbiqumCodeAcademy/projects/kaggle_AirbnbAmsterdam/report/exploration_NY.Rmd",
+    "project_path" : "report/exploration_NY.Rmd",
+    "properties" : {
+        "cursorPosition" : "348,40",
+        "docOutlineVisible" : "1",
+        "last_setup_crc32" : "94F43F52d47f1a3f",
+        "scrollLine" : "322",
+        "tempName" : "Untitled1"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 5,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}
