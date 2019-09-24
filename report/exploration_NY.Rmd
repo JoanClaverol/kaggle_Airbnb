@@ -4,7 +4,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, echo = FALSE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = TRUE, echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center")
 ```
 
 # Data description 
@@ -35,6 +35,8 @@ if (require(pacman) == FALSE) {
   install.packages("pacman")
 }
 pacman::p_load(tidyverse, lubridate, magrittr,
+               # calling python in r
+               reticulate, 
                # styles to tables
                kableExtra, knitr,
                # visualizations
@@ -42,7 +44,7 @@ pacman::p_load(tidyverse, lubridate, magrittr,
                # working with text
                tidytext,
                # machine learning
-               caret, modelr, fastDummies
+               caret, modelr, fastDummies, doParallel
                )
 # load data
 data <- read_csv(
@@ -53,6 +55,36 @@ data <- read_csv(
 col <- "dodgerblue4"
 # caption used for all the charts 
 caption <- "Airbnb listings and metrics in NYC, NY, USA (2019)"
+```
+
+# Data quality
+
+## Checking missing data 
+
+```{r}
+kable(
+  data %>% 
+    summarise_all(~sum(is.na(.))) %>% 
+    gather(key = "variable", value = "nº missing values")
+  ) %>% 
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = F)
+```
+
+We can already detect missing values on some of the columns. We can do three things here:
+
+1. Exclude the column
+2. Exclude the row
+3. Fill them 
+
+For the columns **last_review** and **reviews per month** we can exclude them. 
+On the other hand, we will fill **name** and **host name** with an *unknown* string. 
+
+```{r}
+data %<>% 
+  select(-last_review, - reviews_per_month) %>% 
+  mutate_at(vars(name, host_name), ~if_else(is.na(.), "unknown", .))
 ```
 
 # Analysing hosts and areas
@@ -136,7 +168,7 @@ data %>%
   left_join(y = top_listingIDs, by = "host_id") %>% 
   select(n, host_name, neighbourhood, latitude, longitude) %>% 
   ggplot() +
-    geom_point(aes(x = longitude, y = latitude), color = "grey") +
+    geom_point(aes(x = longitude, y = latitude), color = "grey87") +
     geom_point(aes(x = if_else(!is.na(n), longitude, NULL), 
                    y = if_else(!is.na(n), latitude, NULL)), 
                color = "red", alpha = 0.3) +
@@ -149,20 +181,40 @@ data %>%
     theme_minimal()
 ```
 
+Probably they will be placed on the most expensive area of new yorl. To detect that we will create a heat map:
+
+```{r}
+# define outlier treshold
+out_tresh <- 500
+# graphs
+data %>% 
+  filter(price < out_tresh) %>% 
+  arrange(price) %>% 
+  ggplot() +
+    geom_point(aes(x = longitude, y = latitude, color = price)) +
+    # scale_color_distiller(palette = "Spectral") +
+    scale_colour_gradient(low = "gray87", high = "red") +
+    labs(title = "Price heat map of Airbnb apartments",
+         subtitle = paste("Prices higher than ", out_tresh ,"$ are not included", 
+                          sep = ""),
+         color = "Price", caption = caption) +
+    theme_minimal()
+```
+
 The hypothesis seems to be correct. I can bet if we look for the places with a higher price, we will see a nice relation to this part of New York. To be able to compare the prices between different zones, we will differentiate the room types by colors:
 
 ```{r}
 # plot creation
 data %>%
   group_by(neighbourhood_group, room_type) %>% 
-  summarise(mean_price = median(price, na.rm = T), n = n()) %>%
-  arrange(desc(mean_price)) %>% 
+  summarise(median_price = median(price, na.rm = T), n = n()) %>%
+  arrange(desc(median_price)) %>% 
   ggplot() +
-    geom_point(aes(x = reorder(neighbourhood_group, mean_price), 
-                   y = mean_price, size = n, color = room_type)) +
+    geom_point(aes(x = reorder(neighbourhood_group, median_price), 
+                   y = median_price, size = n, color = room_type)) +
     coord_flip() + 
     ylab("Mean price in $") +
-    labs(title = "Mean price by each neighbourhood group",
+    labs(title = "Median price by each neighbourhood group",
          subtitle = paste("The size of the points represents the quantity of",
                           "observations included\n(range from 9 to 13.000",
                           "obs.)", 
@@ -179,7 +231,47 @@ data %>%
     )
 ```
 
-These corporations know where to put their money. The price of Manhattans Aribnbs are almost the double than Brooklyn, in 2nd position. 
+In that graph we are missing more informaiton about the distribution of the data based on room type and neighbourkood group. We will use violins plots to see it:
+
+```{r}
+data %>% 
+  filter(price < out_tresh) %>% 
+  ggplot(aes(y = price, x = reorder(neighbourhood_group, price), 
+                    fill = room_type)) + 
+    geom_violin(alpha = 0.5) +
+    coord_flip() + 
+    facet_wrap(~room_type) +
+    scale_fill_brewer(palette = "Dark2") +
+    ylab("Price in $") +
+    labs(title = "Price distributions in relation to neighbourhood and room type",
+         subtitle = paste("The observations with a price bigger than ", out_tresh,
+                          "$ has been excluded", sep = ""),
+         caption = caption) +
+    theme_minimal() +
+    theme(
+      axis.title.y = element_blank(),
+      legend.title = element_blank(),
+      legend.position = "top"
+    )
+```
+
+### Outlier extraction
+
+```{r}
+# finding the percentage of the data we are excluding
+temp <- data %>%
+  filter(price < out_tresh) %>% 
+  nrow()
+perc_out <- round((nrow(data)-temp)/nrow(data)*100,2)
+```
+
+There is a clear effect of high prices in our data. We will filter out all the apartments with a price higher than **`r out_tresh`$**, it will represent `r perc_out`% of the data. 
+
+```{r}
+# filtering the data
+data %<>% filter(price < out_tresh)
+```
+
 
 ## Check bias in the data
 
@@ -215,7 +307,6 @@ kable(
   kable_styling(
     bootstrap_options = c("striped", "hover", "condensed", "responsive"),
     full_width = F)
-  
 ```
 
 We can conlclude we have a clear bias on the data. *Bronx and Staten Island* are completly missrepresented, and *Manhattan and Brooklyn* overrepresented. We will have to look if we will have to apply some techniques to avoid a a bias on our model. 
@@ -231,14 +322,12 @@ data %<>%
   mutate(total_price = price * minimum_nights)
 ```
 
-
-
 We can already mention that *location* and *room type* has a strong influence on price. We are going to create a linear model to evaluate the prices:
 
 ```{r}
 # model creation 
-mod_price <- lm(total_price ~., data = data %>% 
-                  select(neighbourhood_group, room_type, total_price))
+mod_price <- lm(price ~., data = data %>% 
+                  select(neighbourhood_group, room_type, price))
 # checking at the metrics
 data %>% 
   add_predictions(model = mod_price, var = "price_pred") %>% 
@@ -271,7 +360,6 @@ Okey, we can extract different conclusions froms this graph:
 temp %>% 
   ggplot() +
     stat_qq(aes(sample = price_resid)) + 
-    labs(title = "Residuals distribution to detect a tendency on the model\nto underpredict the price") +
     theme_minimal()
 ```
 
@@ -319,9 +407,10 @@ text_words  <- text_words  %>%
 text_wordcounts <- text_words %>% count(word, sort = TRUE)
 
 # plot the results
+filter_treshold <- 1000
 text_wordcounts %>% 
   arrange(desc(n)) %>% 
-  head(50) %>% 
+  filter(n >= filter_treshold) %>% 
   ggplot() +
     geom_col(aes(x = reorder(word, n), y = n), fill = col) +
     coord_flip() +
@@ -332,73 +421,72 @@ text_wordcounts %>%
     theme(axis.title.y = element_blank())
 # define wanted words (repeated more than 25 times)
 relevant_words <- text_wordcounts %>% 
-  filter(n >= 50) %>% 
+  filter(n >= filter_treshold) %>% 
   select(word) 
 ```
 
 We will decide to keep all the variables that appear more than 50 times:
 
-```{r}
+```{r include=FALSE}
 # create new feaures and create dummy variables
-words_data <- data %>% 
+words_data <- data %>%
   mutate(
     temp_name = str_replace_all(name, pattern = '\"', replacement = ""),
     temp_name = str_replace_all(temp_name, pattern = '\n', replacement = ""),
     temp_name = str_replace_all(temp_name, pattern = '\u0092', replacement = "'"),
     temp_name = str_replace_all(temp_name, pattern = '\u0091', replacement = "'")
-  ) %>% 
-  unnest_tokens(output = word, input = temp_name) %>% 
+  ) %>%
+  unnest_tokens(output = word, input = temp_name) %>%
   anti_join(stop_words) %>%  # stop words extraction
-  mutate(word_filter = if_else(word %in% relevant_words$word, word, "none")) %>% 
-  dummy_cols(select_columns = "word_filter") %>% 
-  distinct(id, .keep_all = T)
+  mutate(word_filter = if_else(word %in% relevant_words$word, word, "none")) %>%
+  dummy_cols(select_columns = "word_filter") %>%
+  distinct(id, .keep_all = T) 
+```
 
-# regression model to predict price
-mod_price_dummy <- lm(price ~., data = words_data %>% 
-                        select(neighbourhood_group, room_type, price, 
-                               starts_with("word_filter_")))
+Let's find out if we can use the information of a correlation matrix to find out the most relevant variables:
 
-# cheking the metrics of the model 
-# checking at the metrics
+```{r}
 words_data %>% 
-  add_predictions(model = mod_price_dummy, var = "price_pred") %>% 
-  add_residuals(model = mod_price_dummy, var = "price_resid") -> temp
+  select_if(is.numeric) %>% 
+  cor(.) %>% 
+  as_tibble(.) %>% 
+  mutate(var = names(.)) %>% 
+  select(price, var) %>% 
+  arrange(desc(price)) %>% 
+  filter(!between(price, -0.3, 0.3)) %>% 
+  mutate(price = round(price,2))
+```
+
+### Creating the 2nd model with knn 
+
+We can conclude there is no clear word in the name variable that help us to improve our model. Probably by adding all this new features wwe are causing in our model an overfitting. 
+
+```{r include=FALSE}
+# regression model to predict price
+mod_price_2nd <- lm(price ~., 
+                    data = words_data %>% 
+                      select(neighbourhood_group, room_type, price, 
+                             starts_with("word_filter_")
+                             ))
+
+# checking at the metrics
+words_data %>%
+  add_predictions(model = mod_price_2nd, var = "price_pred") %>%
+  add_residuals(model = mod_price_2nd, var = "price_resid") -> temp
 postResample(pred = temp$price_pred, obs = temp$price)
 ```
 
 Let's plot the errors of our model with dummy variables:
 
 ```{r}
-temp %>% 
+temp %>%
   ggplot() +
     geom_point(aes(x = price_pred, y = price)) +
-    geom_abline(slope = 1, intercept = 0, color = "red") + 
+    geom_abline(slope = 1, intercept = 0, color = "red") +
     labs(title = "Error analyisis for price model, including words in names",
          subtitle = "In a perfect situation, all the points should fall into the red line") +
     xlab("Price predictions") + ylab("Price") +
-    theme_minimal() 
+    theme_minimal()
 ```
 
-Try to use caret with a random forest to predict the prices:
-
-```{r}
-names <- words_data %>% 
-    select(neighbourhood_group, room_type, price,starts_with("word_filter_"))  %>% 
-    names()
-
-source("models/fun_model_creation.R")
-model_caret <- modalization(
-  data = words_data, p_partition = 0.8, cv_repeats = 1, cv_number = 1,
-  x = "price", y = names, model_name = "rf", set_seed = 123
-  )
-
-
-
-
-model_caret <- caret::train(
-  form = price ~., 
-  data = words_data[names],
-  method = "rf"
-)
-```
-
+The perfomance of our model has not increased so much, next steps would be to create models for relevant groups of prices ans see if we can classify different groups the correct way. 
